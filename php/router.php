@@ -7,6 +7,7 @@ enum Referer {
     case Delete;
     case AggregateContent;
 };
+
 class Router {
     private $request;
     private $abort = false;
@@ -18,17 +19,22 @@ class Router {
     }
 
     private function validateHTTPRequest() {
+        $message = "";
         if(!isset($this->request)) {
-            $this->abort("Request not initialized, placeholder");
+            $message = "Request not initialized, placeholder";
         }
         if(!isset($this->request["HTTP_USER_AGENT"])) {
-            $this->abort("Invalid user agent, placeholder");
+            $message = "Invalid user agent, placeholder";
         }
         if($this->request["SERVER_PROTOCOL"] != "HTTP/1.1") {
-            $this->abort("Insecure connection, placeholder");
+            $message = "Insecure connection, placeholder";
         }
         if(!isset($this->request["REQUEST_METHOD"])) {
-            $this->abort("No request method specified, placeholder");
+            $message = "No request method specified, placeholder";
+        }
+
+        if($message != "") {
+            $this->abort($message);
         }
     }
 
@@ -36,9 +42,15 @@ class Router {
         $this->validateHTTPRequest();
         if(!$this->abort) {
             $method = $this->request["REQUEST_METHOD"];
-            $api = new API($method, "placeholder");
-            $api->loadConfig("config/config.json"); // error handling, no hard coded filepath
-            $api->handleRequest($referer);
+            $content = file_get_contents("php://input");
+            if($content) {
+                $api = new API($method, $content);
+                if($api->loadConfig("../config/config.json")) {
+                    $api->handleRequest($referer);
+                }
+            } else {
+                $this->abort("Unable to read request body.");
+            }
         }
     }
 

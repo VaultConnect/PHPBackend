@@ -1,35 +1,39 @@
 <?php
     require_once("error.php");
     require_once("util.php");
+    require_once("auth.php");
 
     class API {
-        private $_method;
-        private $_requestContent;
+        private $method;
+        private $requestContent;
         private $config;
 
         public function __construct($method, $requestContent) {
-            $this->_method = $method;
+            header("Content-Type: application/json");
+            $this->method = $method;
             try {
-                $this->_requestContent = json_decode($requestContent, true);
+                $this->requestContent = json_decode($requestContent, true);
             } catch(Exception $exception) {
                $this->abort($exception->getMessage());
             }
         }
+
         public function loadConfig($filePath) {
             $this->config = new BackendConfig();
             if(!$this->config->loadConfig($filePath)) {
-                   $this->abort("Unable to load config.");
+                $this->abort("Unable to load config.");
+                return false;
             }
+            return true;
         }
 
-        public function respond($data) {
+        private function respond($data) {
             if(!empty($data)) {
-                header("Content-Type: application/json");
                 try {
-                    if(json_validate($data)) {
-                        echo $data;
-                    } else if(is_array($data)) {
+                    if(is_array($data)) {
                         $data = json_encode($data, JSON_FORCE_OBJECT);
+                        echo $data;
+                    } else if(json_validate($data)) {
                         echo $data;
                     }
                 } catch(Exception $exception) {
@@ -38,7 +42,7 @@
             }
         }
 
-        public function abort($reason) {
+        private function abort($reason) {
             $errorData = ErrorHandler::handleError(ErrorType::APIException, $reason);
             $this->respond($errorData);
         }
@@ -46,8 +50,16 @@
         public function handleRequest($referer) {
             switch($referer) {
                 case Referer::Login:
-                    $responseData = array("data" => "Response");
-                    $this->respond($responseData);
+                    $responseData = match($this->method) {
+                        "GET" => array("data" => $this->requestContent),
+                        "POST" => array("data" => $this->requestContent),
+                        default => null,
+                    };
+                    if(empty($responseData)) {
+                        $this->abort("Login request was performed with invalid method");
+                    } else {
+                        $this->respond($responseData);   
+                    }
                     break;
                 case Referer::Register:
                     break;

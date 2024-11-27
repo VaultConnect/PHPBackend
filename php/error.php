@@ -22,7 +22,8 @@
 
         private static function formatErrorMessage($errorType, $message) {
             $data = array("Error" => ErrorHandler::enumToString($errorType),
-                          "Message" => $message);
+                          "Message" => $message,
+                          "Time" => (new DateTime("now"))->format("D-M-Y h:i:s"));
             return json_encode($data);
         }
 
