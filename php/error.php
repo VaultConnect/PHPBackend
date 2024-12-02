@@ -6,7 +6,7 @@
         case Unknown;
     };
     class ErrorHandler {
-        private static function enumToString($errorType) {
+        private static function enumToString($errorType): string {
             switch($errorType) {
                 case ErrorType::RequestCheck:
                     return "RequestCheck";
@@ -20,18 +20,18 @@
             }
         }
 
-        private static function formatErrorMessage($errorType, $message) {
-            $data = array("Error" => ErrorHandler::enumToString($errorType),
+        private static function formatErrorMessage($errorType, $message): bool|string {
+            $data = array("Error" => ErrorHandler::enumToString(errorType: $errorType),
                           "Message" => $message,
-                          "Time" => (new DateTime("now"))->format("D-M-Y h:i:s"));
-            return json_encode($data);
+                          "Time" => (new DateTime(datetime: "now"))->format(format: "D-M-Y h:i:s"));
+            return json_encode(value: $data);
         }
 
-        public static function handleError($errorType, $message) {
+        public static function handleError($errorType, $message): bool|string {
             if(empty($errorType) || empty($message)) {
                 return "";
             } else {
-                return ErrorHandler::formatErrorMessage($errorType, $message);
+                return ErrorHandler::formatErrorMessage(errorType: $errorType, message: $message);
             }
         }
     };

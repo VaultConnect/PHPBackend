@@ -5,6 +5,7 @@ enum Referer {
     case Login;
     case Register;
     case Delete;
+    case Status;
     case AggregateContent;
 };
 
@@ -12,13 +13,13 @@ class Router {
     private $request;
     private $abort = false;
 
-    private function abort($message) {
-        $errorMessage = ErrorHandler::handleError(ErrorType::RequestCheck, $message);
+    private function abort($message): void {
+        $errorMessage = ErrorHandler::handleError(errorType: ErrorType::RequestCheck, message: $message);
         $this->abort = true;
         echo $errorMessage;
     }
 
-    private function validateHTTPRequest() {
+    private function validateHTTPRequest(): void {
         $message = "";
         if(!isset($this->request)) {
             $message = "Request not initialized, placeholder";
@@ -34,22 +35,20 @@ class Router {
         }
 
         if($message != "") {
-            $this->abort($message);
+            $this->abort(message: $message);
         }
     }
 
-    public function route($referer){
+    public function route($referer): void{
         $this->validateHTTPRequest();
         if(!$this->abort) {
             $method = $this->request["REQUEST_METHOD"];
-            $content = file_get_contents("php://input");
+            $content = file_get_contents(filename: "php://input");
             if($content) {
-                $api = new API($method, $content);
-                if($api->loadConfig("../config/config.json")) {
-                    $api->handleRequest($referer);
-                }
+                $api = new API(method: $method, requestContent: $content, configPath: "../config/config.json");
+                $api->handleRequest(referer: $referer);
             } else {
-                $this->abort("Unable to read request body.");
+                $this->abort(message: "Unable to read request body.");
             }
         }
     }
