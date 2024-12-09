@@ -21,7 +21,9 @@
                 $this->status->DB = 1;
                 $this->status->Router = 1;
                 try {
-                    $this->requestContent = json_decode(json: $requestContent, associative: true);
+                    // $debug = '{"username:" "Test"}';
+                    $this->requestContent = json_decode(json: $requestContent, associative: false);
+                    // echo $this->$requestContent;
                     $this->database = new Database(config: $this->config);
                 } catch(Exception $exception) {
                    $this->abort(reason: $exception->getMessage());
@@ -60,22 +62,24 @@
             $errorData = ErrorHandler::handleError(errorType: ErrorType::APIException, message: $reason);
             $this->respond(data: $errorData);
         }
+        
         /* GET -> Check if this user exists
            POST -> Login action */
         private function handleLogin(): array | null {
-            if(empty($this->requestContent['username']))
+            if(empty($this->requestContent->{"username"}))
                 return null;
             
-            echo hash(algo: "sha256", data: $this->requestContent['password'], binary: false);
             return match($this->method) {
-                "GET" => array("status" => "200", "data" => ($this->database->userExists(username: $this->requestContent['username']))),
+                "GET" => array("status" => "200", "data" => ($this->database->userExists(username: $this->requestContent->{"username"}))),
                 "POST" => (function (): array {
-                    $sessionToken = $this->database->userLogin(username: $this->requestContent['username'],
-                                                               password: hash(algo: "sha256", data: $this->requestContent['password'], binary: false));
+                    echo "<".$this->requestContent->{"username"}.",".hash(algo: "sha256", data: $this->requestContent->{"password"}, binary: false).">";
+                    $sessionToken = $this->database->userLogin(username: $this->requestContent->{"username"},
+                                                               password: hash(algo: "sha256", data: $this->requestContent->{"password"}, binary: false));
+                    
                     if($sessionToken == "") {
                         return array("status" => "401", "data" => "Authentication failed.");
                     } else {
-                        return array("status" => "200", "data" => "SessionToken:$sessionToken");
+                        return array("status" => "200", "data" => $sessionToken);
                     }
                 })(),
                 default => null,
@@ -83,18 +87,18 @@
         }
 
         private function handleRegister(): array | null {
-            if(empty($this->requestContent["username"]) || empty($this->requestContent["password"])
-            || empty($this->requestContent["email"]))
+            if(empty($this->requestContent->{"username"}) || empty($this->requestContent->{"password"})
+            || empty($this->requestContent->{"email"}))
                 return null;
             
             return match($this->method) {
                 "POST" => array("status" => "201",
-                                "data" => $this->database->createUser(username: $this->requestContent["username"],
+                                "data" => $this->database->createUser(username: $this->requestContent->{"username"},
                                                                       password: hash(algo: "sha256",
-                                                                                     data: $this->requestContent["password"],
+                                                                                     data: $this->requestContent->{"password"},
                                                                                      binary: false),
-                                                                      email: $this->requestContent["email"],
-                                                                      roles: "")),
+                                                                      email: $this->requestContent->{"email"},
+                                                                      roles: "employee")),
                 default => null,
             };
         }
@@ -102,11 +106,11 @@
         /* GET -> Check whether privileges suffice 
            POST -> GET + action */
         private function deleteUser(): array | null {
-            if(empty($this->requestContent['username']) || empty($this->requestContent['SessionToken'])
-            || empty($this->requestContent['targetUsername']))
+            if(empty($this->requestContent->{"username"}) || empty($this->requestContent->{"SessionToken"})
+            || empty($this->requestContent->{"targetUsername"}))
                 return null;
-            $user = $this->requestContent['username'];
-            $targetUser = $this->requestContent['targetUsername'];
+            $user = $this->requestContent->{"username"};
+            $targetUser = $this->requestContent->{"targetUsername"};
             $userExists = $this->database->userExists(username: $targetUser);
 
             if($userExists) {
@@ -121,7 +125,7 @@
 
                 return $response;
             } else {
-                return array("data" => "User does not exist.");
+                return array("status" => "404", "data" => "User does not exist.");
             }
         }
 
