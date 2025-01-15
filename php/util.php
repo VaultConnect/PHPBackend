@@ -1,9 +1,14 @@
-<?php 
+<?php
+    function safeReadJSON($filePath) {
+
+    }
+
     class BackendConfig {
         public $DB_Name = null;
         public $DB_Host = null;
         public $DB_User = null;
         public $DB_Key = null;
+        public $PAGE_Permissions = null;
 
         public function __construct($filePath = false) {
             if(file_exists(filename: $filePath)) {
@@ -33,6 +38,9 @@
             else
                 $this->DB_Key = trim(string: $this->DB_Key);
 
+            if(empty($this->PAGE_Permissions))
+                $checksPassed = false;
+
             return $checksPassed;
         }
 
@@ -51,6 +59,7 @@
                 $this->DB_Host = $jsonObject->{"DB_Host"};
                 $this->DB_User = $jsonObject->{"DB_User"};
                 $this->DB_Key = $jsonObject->{"DB_Key"};
+                $this->PAGE_Permissions = $jsonObject->{"PAGE_Permissions"};
                 return $this->validateConfig();
             } catch(Exception $exception) {
                 echo "Error while reading config file: ".$exception->getMessage();
@@ -141,4 +150,52 @@
             $this->companyAccess = true;
         }
     }
+
+    class User {
+        public $id;
+        public $email;
+        public $username;
+        public $userFlags;
+
+        public function __construct(UserFlags $flags, $id, $email, $username) {
+            $this->id = $id;
+            $this->email = $email;
+            $this->username = $username;
+            $this->userFlags = $flags;
+        }
+    }
+
+    class ContentProvider {
+        private $requirements;
+        private $files;
+
+        // todo: Error handling
+        private function readDirectory($path) {
+            $it = new DirectoryIterator(directory: $path);
+            while($it->valid() && !$it->isDot()) {
+                $fileName = $it->getFilename();
+                $splitPos = strrpos(haystack: $fileName, needle: ".");
+                $fileDescriptor = substr(string: $fileName,
+                                         offset: 0,
+                                         length: $splitPos + 1);
+                $fileType = substr(string: $fileName,
+                                         offset: $splitPos+1,
+                                         length: strlen(string: $fileName)-$splitPos);
+                if($fileDescriptor == "perm" && $fileType == "json") {
+                    
+                } else {
+                    $this->files[] = array("name" => $fileDescriptor,
+                                           "type" => $fileType);
+                }
+                $it->next();
+            }
+        }
+
+        public function __construct($contentPath) {
+            $this->readDirectory(path: $contentPath);
+        }
+    }
+
+    
+
 ?>

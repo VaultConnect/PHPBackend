@@ -98,6 +98,33 @@
             }
         }
 
+        public function changePassword($user, $newPassword): bool {
+            $data = array(
+                0 => $this->newKV(key:"username", value:$user),
+                1 => $this->newKV(key:"password", value:$newPassword),
+            );
+            $result = $this->execStatement(statement: "UPDATE users SET users.password = :password WHERE users.username :username;", data: $data);
+            return $result != null;
+        }
+
+        public function changeUsername($origUsername, $newUsername): bool {
+            $data = array(
+                0 => $this->newKV(key:"username", value:$newUsername),
+                1 => $this->newKV(key:"originalusername", value:$origUsername),
+            );
+            $result = $this->execStatement(statement: "UPDATE users SET users.username = :username WHERE users.username = :originalusername;", data: $data);
+            return $result != null;
+        }
+
+        public function changeEmail($user, $email): bool {
+            $data = array(
+                0 => $this->newKV(key:"username", value:$user),
+                1 => $this->newKV(key:"email", value:$email),
+            );
+            $result = $this->execStatement(statement: "UPDATE users SET users.email = :email WHERE users.username = :username;", data: $data);
+            return $result != null;
+        }
+
         public function userFlags($username): UserFlags {
             $data = array(
                 0 => $this->newKV(key:"username", value: $username),
@@ -111,13 +138,37 @@
             };
         }
 
-        public function verifyUser($username, $token): bool {
+        public function allUsers($filter = null): array {
+            $result = $this->execStatement(statement: "SELECT * FROM users;", all: true);
+            $users = [];
+            foreach($result as $user) {
+                $users[] = new User(flags: UserFlags::deserialize(data: $user["flags"]), 
+                                    id: $user["id"],
+                                    email: $user["email"],
+                                    username: $user["username"]);
+            }
+            return $users;
+        }
+
+        public function verifyUser($username, $token = null, $password = null): bool {
             $data = array(
                 0 => $this->newKV(key:"username", value: $username),
                 1 => $this->newKV(key:"token", value: $token)
             );
-            $result = $this->execStatement(statement:"SELECT id FROM users WHERE users.username = :username AND users.", data: $data);
-            return ($result && !empty($result));
+
+            if($this->userExists(username: $username)) {
+                $result = false;
+                if($token != null) {
+                    $result = $this->execStatement(statement:"SELECT id FROM users WHERE users.username = :username AND users.validToken = :token;", data: $data);
+                } else if($password != null) {
+                    $result = $this->execStatement(statement: "SELECT id FROM users WHERE users.username = :username AND users.password = :password", data: $data);
+                } else {
+                    return false;
+                }
+                return ($result && !empty($result));
+            } else {
+                return false;
+            }
         }
         
         public function createUser($username, $password, $email, $roles): bool {
@@ -127,12 +178,16 @@
                 2 => $this->newKV(key:":email", value: $email),
                 3 => $this->newKV(key:":roles", value: $roles)
             );
-            
-            $result = $this->execStatement(statement: "INSERT INTO users (username, password, email, roles) VALUES(:username, :password, :email, :roles)", data: $data);
-            // todo: Check for success
-            return $result != null;
-        }
 
+            $userExists = $this->userExists($username);
+            if($userExists){
+                return false;
+            } else {
+                $this->execStatement(statement: "INSERT INTO users (username, password, email, roles) VALUES(:username, :password, :email, :roles)", data: $data);
+                return true;
+            }
+        }
+    
         public function deleteUser($username): bool {
             $data = array(
                 0 => $this->newKV(key:"username", value: $username)

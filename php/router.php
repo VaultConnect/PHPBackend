@@ -5,6 +5,7 @@ enum Referer {
     case Login;
     case Register;
     case Delete;
+    case Update;
     case Status;
     case AggregateContent;
 };

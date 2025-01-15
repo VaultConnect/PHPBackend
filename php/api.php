@@ -48,7 +48,7 @@
                     if(is_array(value: $data)) {
                         $data = json_encode(value: $data, flags: JSON_FORCE_OBJECT);
                         echo $data;
-                    } else if(json_validate(json: $data)) {
+                    } else if(json_decode(json: $data) != null) {
                         echo $data;
                     }
                 } catch(Exception $exception) {
@@ -72,7 +72,6 @@
             return match($this->method) {
                 "GET" => array("status" => "200", "data" => ($this->database->userExists(username: $this->requestContent->{"username"}))),
                 "POST" => (function (): array {
-                    echo "<".$this->requestContent->{"username"}.",".hash(algo: "sha256", data: $this->requestContent->{"password"}, binary: false).">";
                     $sessionToken = $this->database->userLogin(username: $this->requestContent->{"username"},
                                                                password: hash(algo: "sha256", data: $this->requestContent->{"password"}, binary: false));
                     
@@ -129,8 +128,91 @@
             }
         }
 
-        private function provideContent(): string {
-            return "placeholder";
+        private function handleUpdate(): array | null {
+            if(empty($this->requestContent->{"username"}) || empty($this->requestContent->{"SessionToken"})
+            || empty($this->requestContent->{"type"})) {
+                return null;
+            }
+            $username = $this->requestContent->{"username"};
+            $token = $this->requestContent->{"SessionToken"};
+            $type = $this->requestContent->{"type"};
+            $validated = $this->database->verifyUser(username: $username, token: $token);
+            $execUser = $this->database->userFlags(username: $username);
+            if(!$execUser->userManagement || empty($this->requestContent->{"target"})) {
+                return array("status" => "400");
+            }
+
+            $target = $this->requestContent->{"target"};
+
+            if($validated) {
+                switch($type) {
+                    case "delete":
+                        $this->database->deleteUser(username: $target);
+                        break;
+                    case "email":
+                        if(empty($this->requestContent->{"mail"})) {
+                            return array("status" => "400");
+                        }
+                        $this->database->changeEmail(user: $target, email: $this->requestContent->{"mail"});
+                        break;
+                    case "username":
+                        if(empty($this->requestContent->{"newUsername"})) {
+                            return array("status" => "400");
+                        }
+                        $this->database->changeUsername(origUsername: $target, newUsername: $this->requestContent->{"newUsername"});
+                        break;
+                    case "passwordChange":
+                        if(empty($this->requestContent->{"oldPassword"})
+                        || empty($this->requestContent->{"newPassword"})) {
+                            return array("status" => "400");
+                        }
+                        if(!$this->database->verifyUser(username: $username, password: $this->requestContent->{"oldPassword"})) {
+                            return array("stauts" => "401");
+                        }
+                        $this->database->changePassword(user: $target, newPassword: $this->requestContent->{"newPassword"});
+                        break;
+                    default:
+                        break;
+                }
+                return array("status" => "200");
+            } else {
+                return null;
+            }
+        }
+
+        private function provideContent(): array | null {
+            if(empty($this->requestContent->{"username"}) || empty($this->requestContent->{"SessionToken"})
+            || empty($this->requestContent->{"content"})) {
+                return null;
+            }
+            $username = $this->requestContent->{"username"};
+            $token = $this->requestContent->{"SessionToken"};
+            $content = $this->requestContent->{"content"};
+            $validated = $this->database->verifyUser(username: $username, token: $token);
+
+            if($validated) {
+                $returnData = "";
+                switch($content) {
+                    case "users":
+                        $users = $this->database->allUsers();
+                        foreach($users as $user) {
+                            $type = ($user->userFlags->admin) ? "Admin" : "User";
+                            $returnData += "<tr>\n";
+                            $returnData += "<th scope='row'>$user->id</th>\n";
+                            $returndata += "<td>$user->username</td>\n";
+                            $returndata += "<td>$user->email</td>\n";
+                            $returndata += "<td>$type</td>\n";
+                            $returnData += "</tr>\n";
+                        }
+                        break;
+                    default:
+                        $returnData = "";
+                        break;
+                }
+                return array("status" => "200", "data" => json_encode(value: $returnData));
+            } else {
+                return null;
+            }
         }
 
         public function handleRequest($referer): void { 
@@ -145,6 +227,9 @@
                         break;
                     case Referer::Delete:
                         $responseData = $this->deleteUser();
+                        break;
+                    case Referer::Update:
+                        $responseData = $this->handleUpdate();
                         break;
                     case Referer::AggregateContent:
                         $responseData = $this->provideContent();
