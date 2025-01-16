@@ -73,7 +73,7 @@
                 "GET" => array("status" => "200", "data" => ($this->database->userExists(username: $this->requestContent->{"username"}))),
                 "POST" => (function (): array {
                     $sessionToken = $this->database->userLogin(username: $this->requestContent->{"username"},
-                                                               password: hash(algo: "sha256", data: $this->requestContent->{"password"}, binary: false));
+                                                               password: $this->requestContent->{"password"});
                     
                     if($sessionToken == "") {
                         return array("status" => "401", "data" => "Authentication failed.");
@@ -97,7 +97,7 @@
                                                                                      data: $this->requestContent->{"password"},
                                                                                      binary: false),
                                                                       email: $this->requestContent->{"email"},
-                                                                      roles: "employee")),
+                                                                      roles: (new AdminUser)->serialize())),
                 default => null,
             };
         }
@@ -146,14 +146,21 @@
 
             if($validated) {
                 switch($type) {
-                    case "delete":
-                        $this->database->deleteUser(username: $target);
-                        break;
                     case "email":
                         if(empty($this->requestContent->{"mail"})) {
                             return array("status" => "400");
                         }
                         $this->database->changeEmail(user: $target, email: $this->requestContent->{"mail"});
+                        break;
+                    case "demote":
+                        $flags = $this->database->userFlags($target);
+                        $flags->admin = false;
+                        $this->database->setUserFlags($target, $flags);
+                        break;
+                    case "promote":
+                        $flags = $this->database->userFlags($target);
+                        $flags->admin = true;
+                        $this->database->setUserFlags($target, $flags);
                         break;
                     case "username":
                         if(empty($this->requestContent->{"newUsername"})) {
@@ -162,19 +169,16 @@
                         $this->database->changeUsername(origUsername: $target, newUsername: $this->requestContent->{"newUsername"});
                         break;
                     case "passwordChange":
-                        if(empty($this->requestContent->{"oldPassword"})
-                        || empty($this->requestContent->{"newPassword"})) {
+                        if(empty($this->requestContent->{"newPassword"})) {
                             return array("status" => "400");
                         }
-                        if(!$this->database->verifyUser(username: $username, password: $this->requestContent->{"oldPassword"})) {
-                            return array("stauts" => "401");
-                        }
-                        $this->database->changePassword(user: $target, newPassword: $this->requestContent->{"newPassword"});
+                        $this->database->changePassword(user: $target, newPassword: hash("sha256", $this->requestContent->{"newPassword"}, false));
                         break;
                     default:
                         break;
                 }
-                return array("status" => "200");
+                $debug = $this->database->userFlags($target);
+                return array("status" => $debug->serialize());
             } else {
                 return null;
             }
@@ -189,7 +193,7 @@
             $token = $this->requestContent->{"SessionToken"};
             $content = $this->requestContent->{"content"};
             $validated = $this->database->verifyUser(username: $username, token: $token);
-
+            // return array("status" => "200", "data" => "$username, $token, $validated == ");
             if($validated) {
                 $returnData = "";
                 switch($content) {
@@ -197,19 +201,14 @@
                         $users = $this->database->allUsers();
                         foreach($users as $user) {
                             $type = ($user->userFlags->admin) ? "Admin" : "User";
-                            $returnData += "<tr>\n";
-                            $returnData += "<th scope='row'>$user->id</th>\n";
-                            $returndata += "<td>$user->username</td>\n";
-                            $returndata += "<td>$user->email</td>\n";
-                            $returndata += "<td>$type</td>\n";
-                            $returnData += "</tr>\n";
+                            $returnData .= "<tr><th scope='row'><input type='radio' name='user' value='$user->username'/></th><td>$user->id</td><td>$user->username</td><td>$user->email</td><td>$type</td></tr>";
                         }
                         break;
                     default:
                         $returnData = "";
                         break;
                 }
-                return array("status" => "200", "data" => json_encode(value: $returnData));
+                return array("status" => "200", "data" => $returnData);
             } else {
                 return null;
             }

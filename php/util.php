@@ -90,8 +90,21 @@
         public $companyAccess;  // If set the user can view and manage corporate data
 
         public function serialize(): string {
-            return "admin:".$this->admin.",userManagement:".$this->userManagement.
-                   ",dataManagement:".$this->dataManagement.",companyAccess:".$this->companyAccess;
+            return "admin:".(($this->admin) ? "1" : "0").",userManagement:".(($this->userManagement) ? "1" : "0").
+                   ",dataManagement:".(($this->dataManagement) ? "1" : "0").",companyAccess:".(($this->companyAccess) ? "1" : "0");
+        }
+
+        public static function deserializeDebug($data): string {
+            $entries = explode(separator: ',', string: $data);
+            $stuff = "";
+            foreach($entries as $entry) {
+                $splitPos = strpos($entry, ':', 0);
+                $key = substr($entry, 0, $splitPos);
+                $value = substr($entry, $splitPos+1 , 1) == "1";
+                $stuff .= "$key / $splitPos / $value,";
+                
+            }
+            return $stuff;
         }
 
         public static function deserialize($data): UserFlags {
@@ -101,7 +114,7 @@
             foreach($entries as $entry) {
                 $splitPos = strpos($entry, ':', 0);
                 $key = substr($entry, 0, $splitPos);
-                $value = substr($entry, $splitPos+1, strlen($entry)-$splitPos) == "true";
+                $value = substr($entry, $splitPos+1 , 1) == "1";
                 switch($key) {
                     case "admin":
                         $userFlags->admin = $value;

@@ -16,14 +16,19 @@
     function showUsersTable() {
 ?>
         <div class="container">
+            <form method="post">
             <div class="row">
-                <div class="col-6">
-                    <button class="btn btn-primary" style="background-color: light-blue">Delete</button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-primary" style="background-color: light-blue" type="submit" name="buttons" value="0">Delete</button>
+                    <button class="btn btn-primary" style="background-color: light-blue" type="submit" name="buttons" value="1">Reset password</button>
+                    <button class="btn btn-primary" style="background-color: light-blue" type="submit" name="buttons" value="2">Demote</button>
+                    <button class="btn btn-primary" style="background-color: light-blue" type="submit" name="buttons" value="3">Promote</button>
                 </div>
             </div>
             <table class="table table-striped">
                 <thead>
                     <tr>
+                        <th scope="col">#</th>
                         <th scope="col">ID</th>
                         <th scope="col">Username</th>
                         <th scope="col">E-Mail</th>
@@ -36,10 +41,66 @@
                 ?>
                 </tbody>
             </table>
+            </form>
         </div>
 <?php
     }
-    showUsersTable();
+
+    function deleteUser($user, $sessionToken, $target) {
+        $request = [
+            "username" => $user,
+            "SessionToken" => $sessionToken,
+            "target" => $target,
+        ];
+        $response = WebUtil::postRequest(Route::Delete, $request);
+        print_r($response);
+    }
+
+    function demoteUser($user, $sessionToken, $target) {
+        $request = [
+            "username" => $user,
+            "SessionToken" => $sessionToken,
+            "target" => $target,
+            "type" => "demote",
+        ];
+        $response = WebUtil::postRequest(Route::Update, $request);
+    }
+
+    function promoteUser($user, $sessionToken, $target) {
+        $request = [
+            "username" => $user,
+            "SessionToken" => $sessionToken,
+            "target" => $target,
+            "type" => "promote",
+        ];
+        $response = WebUtil::postRequest(Route::Update, $request);
+    }
+
+    if($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["buttons"])) {
+        $username = $_COOKIE["username"];
+        $sessionToken = $_COOKIE["authToken"];
+        $target = $_POST["user"];
+
+        switch($_POST["buttons"]) {
+            case "0":
+                deleteUser($username, $sessionToken, $target);
+                break;
+            case "1":
+                // changePassword($username, $target, $sessionToken);
+                break;
+            case "2":
+                demoteUser($username, $sessionToken, $target);
+                break;
+            case "3":
+                promoteUser($username, $sessionToken, $target);
+                break;
+            default:
+                break;
+        }
+        showUsersTable();
+    } else {
+        showUsersTable();
+    }
 ?>
 </body>
 </html>

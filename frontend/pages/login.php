@@ -66,8 +66,8 @@
         showLoginForm();
         echo "<h2>$reason</h2>";
     }
-
-    if($_SERVER["REQUEST_METHOD"] == "POST") {
+    // print_r($_SERVER);
+    if($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST["from"])) {
         $username = $_POST["userName"];
         $password = $_POST["password"];
         
@@ -84,8 +84,10 @@
             } else {
                 setcookie("authToken", $token, time()+60*60*24*7);
                 setcookie("username", $username, time()+60*60*24*7);
-                $_SERVER["REQUEST_METHOD"] = "GET";
-                header("Location: landing.php");
+                
+                header("Location: index.php?page=home");
+                // loadPage("home");
+                // require_once("pages/home.php");
             }
         }
     } else {

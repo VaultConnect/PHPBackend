@@ -48,11 +48,16 @@
     if($_SERVER["REQUEST_METHOD"] == "POST") {
         $currentPassword = $_POST["oldPassword"];
         $newPassword = $_POST["newPassword"];
+        echo $currentPassword." ".$newPassword;
         if($currentPassword == $newPassword) {
             showPasswordForm();
             echo "<h2>The current password cannot be reused.</h2>";    
         } else {
-            changePassword($_COOKIE["username"], $_COOKIE["authToken"], $currentPassword, $newPassword);
+            changePassword($_COOKIE["username"], $_COOKIE["authToken"],  $newPassword);
+            setcookie("username", "");
+            setcookie("authToken", "");
+            // require_once("pages/home.php");
+            header("Location: index?page=logout");
         }
     } else {
         showPasswordForm();

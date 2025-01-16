@@ -11,7 +11,13 @@
 </head>
 <body>
         <?php
-            require_once("pages/login.php");
+            require_once("pages/navbar.php");
+            require_once("php/util.php");
+            if(isset($_GET["page"])) {
+                loadPage($_GET["page"]);
+            } else {
+                loadPage("home");
+            }
         ?>
 </body>
 </html>

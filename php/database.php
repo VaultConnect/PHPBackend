@@ -41,8 +41,7 @@
             try {
                 $result = $PDOStatement->execute();
                 if($result) {
-                    $dbResult = $PDOStatement->fetch(mode: $mode);
-                    return ($all) ? $PDOStatement->fetchAll($mode) : $dbResult;
+                    return ($all) ? $PDOStatement->fetchAll($mode) : $PDOStatement->fetch(mode: $mode);
                 } else {
                     return null;
                 }
@@ -89,22 +88,27 @@
             } else {
                 $sessionToken = $this->generateSessionToken();
                 $data = array(
-                    0 => $this->newKV(key: "token", value: hash(algo: "sha256", data: $sessionToken, binary: false)),
+                    0 => $this->newKV(key: "token", value: $sessionToken),
                     1 => $this->newKV(key: "username", value: $username)
                 );
                 // echo $sessionToken;
-                // $this->execStatement(statement: "UPDATE users SET users.active_auth = :token WHERE users.username = :username", data: $data);
+                $this->execStatement(statement: "UPDATE auth SET auth.token = :token
+                                                 WHERE EXISTS (
+                                                    SELECT 1 FROM users 
+                                                    WHERE auth.user_id = users.id AND users.username = :username
+                                                );", data: $data);
                 return $sessionToken;
             }
         }
 
-        public function changePassword($user, $newPassword): bool {
+        public function changePassword($user, $newPassword): string {
             $data = array(
                 0 => $this->newKV(key:"username", value:$user),
                 1 => $this->newKV(key:"password", value:$newPassword),
             );
-            $result = $this->execStatement(statement: "UPDATE users SET users.password = :password WHERE users.username :username;", data: $data);
-            return $result != null;
+            $result = $this->execStatement(statement: "UPDATE users SET users.password = :password
+                                                       WHERE users.username = :username;", data: $data);
+            return $user." ".$newPassword;
         }
 
         public function changeUsername($origUsername, $newUsername): bool {
@@ -125,17 +129,27 @@
             return $result != null;
         }
 
-        public function userFlags($username): UserFlags {
+        public function userFlags($username): UserFlags | string {
             $data = array(
                 0 => $this->newKV(key:"username", value: $username),
             );
-            $result = $this->execStatement(statement:"SELECT roles FROM users WHERE users.username = :username", data: $data);
-            return match($result["roles"]) {
+            $result = $this->execStatement(statement:"SELECT flags FROM users WHERE users.username = :username", data: $data);
+            return UserFlags::deserialize($result["flags"]);
+            /* return match($result["flags"]) {
                 "employee" => new InternalUser,
                 "customer" => new ForeignUser,
                 "admin" => new AdminUser,
                 default => null
-            };
+            }; */
+        }
+
+        public function setUserFlags($username, $flags): bool {
+            $data = array(
+                0 => $this->newKV(key:"username", value: $username),
+                1 => $this->newKV(key:"flags", value: $flags->serialize()),
+            );
+            $result = $this->execStatement(statement: "UPDATE users SET users.flags = :flags WHERE users.username = :username", data: $data);
+            return true;
         }
 
         public function allUsers($filter = null): array {
@@ -159,9 +173,18 @@
             if($this->userExists(username: $username)) {
                 $result = false;
                 if($token != null) {
-                    $result = $this->execStatement(statement:"SELECT id FROM users WHERE users.username = :username AND users.validToken = :token;", data: $data);
+                    $result = $this->execStatement(statement:"SELECT auth_id FROM auth
+                                                              JOIN users ON users.id = auth.user_id
+                                                              WHERE users.username = :username AND auth.token = :token;", data: $data);
+                    $dump = file_put_contents(filename: "log.txt", data: "$username, $token");
+                    if($result) {
+                        return true;
+                    }
                 } else if($password != null) {
                     $result = $this->execStatement(statement: "SELECT id FROM users WHERE users.username = :username AND users.password = :password", data: $data);
+                    if(!empty($result["id"])) {
+                        return true;
+                    }
                 } else {
                     return false;
                 }
@@ -172,18 +195,23 @@
         }
         
         public function createUser($username, $password, $email, $roles): bool {
-            $data = array(
+            $userData = array(
                 0 => $this->newKV(key:":username", value: $username),
                 1 => $this->newKV(key:":password", value: $password),
                 2 => $this->newKV(key:":email", value: $email),
-                3 => $this->newKV(key:":roles", value: $roles)
+                3 => $this->newKV(key:":flags", value: $roles)
             );
+            $userId = array( 0 => $this->newKV(key:"username", value: $username) );
+            $authToken = array();
 
-            $userExists = $this->userExists($username);
+            $userExists = $this->userExists(username: $username);
             if($userExists){
                 return false;
             } else {
-                $this->execStatement(statement: "INSERT INTO users (username, password, email, roles) VALUES(:username, :password, :email, :roles)", data: $data);
+                $this->execStatement(statement: "INSERT INTO users (username, password, email, flags) VALUES(:username, :password, :email, :flags)", data: $userData);
+                $result = $this->execStatement(statement: "SELECT id FROM users WHERE users.username = :username;", data: $userId);
+                $authToken = array( 0 => $this->newKV(key:"userid", value: $result["id"]) );
+                $this->execStatement(statement: "INSERT INTO auth (user_id) VALUES(:userid);", data: $authToken);
                 return true;
             }
         }
@@ -197,7 +225,7 @@
             return $result != null;
         }
 
-        public function userLocked($username): bool {
+        private function userLocked($username): bool {
             $data = array(
                 0 => $this->newKV(key:"username", value: $username)
             );

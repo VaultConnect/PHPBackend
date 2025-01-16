@@ -11,7 +11,7 @@
 </head>
 <body>
 <?php
-    include_once("php/util.php");
+    include_once("../php/util.php");
     
     function showRegisterForm() {
 ?>
@@ -61,11 +61,18 @@
                                        binary: false),
                     "email" => $email];
         $response = WebUtil::postRequest(Route::Register, $request);
+        echo "Response:".print_r($response)."end";
     }
 
     function registerFailed($reason) {
         showRegisterForm();
         echo "<h2>$reason</h2>";
+    }
+
+    function userExists($username) {
+        $request = ["username" => $username];
+        $response = WebUtil::getRequest(Route::Login, $request);
+        return $response["data"];
     }
 
     if($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -84,7 +91,8 @@
         } else {
             register($useremail, $username, $password);
             $_SERVER["REQUEST_METHOD"] = "GET";
-            header("Location: frontend/pages/login.php");
+            loadPage("home");
+            // header("Location: frontend/pages/login.php");
         }
     } else {
         showRegisterForm();
